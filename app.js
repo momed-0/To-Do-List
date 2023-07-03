@@ -3,6 +3,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 
+const _ = require("lodash");
 //mongoose for mongodb
 const mongoose = require("mongoose");
 
@@ -91,7 +92,7 @@ app.get("/",function(req,res) {
 
 //dynamic new route
 app.get("/:customListName",function(req,res) {
-    const customListName = req.params.customListName;
+    const customListName = _.capitalize(req.params.customListName);
 
     List.findOne({ name:customListName })
     .then(function(foundList) {
@@ -136,9 +137,7 @@ app.post("/",function(req,res) {
     }
     else {
         //custom list
-        List.findOne( {
-            name : listName
-        } )
+        List.findOne({name : listName})
         .then(function(foundList) {
             foundList.items.push(item);
             foundList.save();
@@ -146,18 +145,40 @@ app.post("/",function(req,res) {
         })
         .catch(function(err) {
             console.log(err);
-        })
+        });
     }
 
 });
 
 app.post("/delete",function(req,res) {
+
     const checkedItemId = req.body.checkBox;
-    Item.findByIdAndRemove(checkedItemId)
+    const listName = req.body.listName;
+
+    if (listName == "Today") {
+        Item.findByIdAndRemove(checkedItemId)
         .catch(function(err) {
             console.log(err)
         });
-    res.redirect("/");
+        res.redirect("/");
+    }
+    else {
+        List.findOneAndUpdate(
+            {
+                name:listName
+            },
+            {
+                $pull: {items: {_id: checkedItemId}}
+            }
+        )
+        .then(function(foundList) {
+            res.redirect("/" + listName);
+        }) 
+        .catch(function(err) {
+            console.lof(err);
+        });
+    }
+
 });
 
 

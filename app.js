@@ -46,6 +46,12 @@ const test3 = new Item ({
 
 const defaultItems = [test1,test2,test3];
 
+const listSchema = {
+    name:String,
+    items:[itemSchema]
+};
+
+const List = mongoose.model("List", listSchema);
 
 
 //---------Route ,Get and Post----------------------------------------------
@@ -83,30 +89,66 @@ app.get("/",function(req,res) {
 
 });
 
+//dynamic new route
+app.get("/:customListName",function(req,res) {
+    const customListName = req.params.customListName;
+
+    List.findOne({ name:customListName })
+    .then(function(foundList) {
+        if (!foundList) {
+            //create a new List
+            const list = new List( {
+                name: customListName,
+                items:defaultItems
+            });
+            list.save();
+            res.redirect("/" + customListName);
+        }
+        else {
+            //show an existing list
+            res.render("list", {
+                listTitle: foundList.name,
+                newListItems: foundList.items
+            });
+        }
+    })
+    .catch(function(err) {
+        console.log(err);
+      });
+
+});
+
 //post request for the new task
 app.post("/",function(req,res) {
 
     const itemName = req.body.newTask; //parse the newTask
+    const listName = req.body.list;
+
     //create new Mongodb doc
     const item = new Item ( {
         name:itemName
     });
-    //save into collections
-    item.save();
-    res.redirect("/");
 
-    /*
-    //if it is work list push into work array 
-    //and redirect to work route
-    if(req.body.list === "Work") {
-        defaultItems.push(item);
-        res.redirect("/work");//where we render the list with workitems
-    } 
-    else {
-        //else push to normal and redirect to root
-        defaultItems.push(item);
+    if(listName === "Today") {
+        //save into collections
+        item.save();
         res.redirect("/");
-    } */
+    }
+    else {
+        //custom list
+        List.findOne( {
+            name : listName
+        } )
+        .then(function(foundList) {
+            foundList.items.push(item);
+            foundList.save();
+            res.redirect("/" + listName);
+        })
+        .catch(function(err) {
+            console.log(err);
+        })
+    }
+
 });
 
 app.post("/delete",function(req,res) {
@@ -118,23 +160,6 @@ app.post("/delete",function(req,res) {
     res.redirect("/");
 });
 
-//another route as work
-app.get("/work",function(req,res) {
-    //render the list page as work
-    res.render("list", {
-        listTitle: "Work List" ,
-        newListItems:defaultItems
-    });
-});
-
-//post route for work
-//won't get triggered we are always sending the form post
-//to root
-app.post("/work",function(req,res) {
-    let item = req.body.newTask;
-    defaultItems.push(item);
-    res.redirect("/work");
-});
 
 
 

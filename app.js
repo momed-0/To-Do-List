@@ -1,16 +1,12 @@
+//---------Requiring Packages----------------------------------------------
 //requiring express and body parser 
 const express = require("express");
 const bodyParser = require("body-parser");
 
-//require the local date module 
-const date = require(__dirname + "/date.js");
+//mongoose for mongodb
+const mongoose = require("mongoose");
 
 const app = express(); //app generated using express
-
-//it is possible to push new items into const array in javascript
-//but can't re assign that
-const items = [] ;//initialize the new item array
-const workItems = [] ;//work list
 
 //tell the app to use ejs (template)
 app.set('view engine','ejs');
@@ -23,37 +19,103 @@ app.use(bodyParser.urlencoded({
   //tell the express to locate static files in public
 app.use(express.static("public"));
 
+//---------Database SetUp MongoDB----------------------------------------------
+
+//create a database in mongodb
+
+//connect to the database
+mongoose.connect("mongodb://127.0.0.1:27017/todolistDB");
+//create a new schema
+const itemSchema =new mongoose.Schema({
+    name : String
+});
+//new mongoose model based on schema
+const Item = mongoose.model("Item", itemSchema);
+
+ 
+const test1 = new Item ( {
+    name:"Welcome Human Being!"
+});
+const test2 = new Item ({
+    name : "Go ahead and Hit + to add new Item"
+});
+const test3 = new Item ({
+    name : "Don't forget to remove the elements by checkbox"
+});
+
+
+const defaultItems = [test1,test2,test3];
+
+
+
+//---------Route ,Get and Post----------------------------------------------
+
 //add a route on the root
 //req -- request by the browser to the server
 //res -- response from the server to the browser
 app.get("/",function(req,res) {
-    //use date module to get current date
-     let day = date.getDate();
+    
 
-     //render list.ejs with the current day type (inside views folder)
-     res.render("list",{
-        listTitle:day,
-        newListItems:items
-    });
+    Item.find({})
+      .then(function(foundItems) {
+
+        //create the default items
+        if(foundItems.length === 0) {
+            Item.insertMany(defaultItems)
+                .then(function () {
+                    console.log("Successfully saved defult items to DB");
+                })
+                .catch(function (err) {
+                    console.log(err);
+                });
+                res.redirect("/");
+        }else {
+             //render list.ejs with the current day type (inside views folder)
+            res.render("list",{
+                listTitle: "Today",
+                newListItems:foundItems
+            });
+        }
+      })
+      .catch(function(err) {
+        console.log(err);
+      });
 
 });
 
 //post request for the new task
 app.post("/",function(req,res) {
 
-    let item = req.body.newTask; //parse the newTask
+    const itemName = req.body.newTask; //parse the newTask
+    //create new Mongodb doc
+    const item = new Item ( {
+        name:itemName
+    });
+    //save into collections
+    item.save();
+    res.redirect("/");
 
+    /*
     //if it is work list push into work array 
     //and redirect to work route
     if(req.body.list === "Work") {
-        workItems.push(item);
+        defaultItems.push(item);
         res.redirect("/work");//where we render the list with workitems
     } 
     else {
         //else push to normal and redirect to root
-        items.push(item);
+        defaultItems.push(item);
         res.redirect("/");
-    }
+    } */
+});
+
+app.post("/delete",function(req,res) {
+    const checkedItemId = req.body.checkBox;
+    Item.findByIdAndRemove(checkedItemId)
+        .catch(function(err) {
+            console.log(err)
+        });
+    res.redirect("/");
 });
 
 //another route as work
@@ -61,7 +123,7 @@ app.get("/work",function(req,res) {
     //render the list page as work
     res.render("list", {
         listTitle: "Work List" ,
-        newListItems:workItems
+        newListItems:defaultItems
     });
 });
 
@@ -70,10 +132,15 @@ app.get("/work",function(req,res) {
 //to root
 app.post("/work",function(req,res) {
     let item = req.body.newTask;
-    workItems.push(item);
+    defaultItems.push(item);
     res.redirect("/work");
 });
 
+
+
+
+
+//---------Set Up The Server----------------------------------------------
 //listen to PO RT3000
 app.listen(3000, function() {
     console.log("Server started at PORT 3000");
